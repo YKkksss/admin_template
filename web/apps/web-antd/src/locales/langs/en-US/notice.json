@@ -1,0 +1,50 @@
+{
+  "name": "Message",
+  "title": "Notifications",
+  "list": "Message List",
+  "keyword": "Keyword",
+  "messageTitle": "Title",
+  "summary": "Summary",
+  "content": "Content",
+  "type": "Type",
+  "readStatus": "Read Status",
+  "createTime": "Time",
+  "operation": "Operation",
+  "detail": "Detail",
+  "batchDelete": "Batch Delete",
+  "batchDeleteConfirm": "Are you sure you want to delete selected messages?",
+  "selectToDelete": "Please select messages to delete first",
+  "typeText": {
+    "1": "Notice",
+    "2": "Announcement",
+    "3": "Warning"
+  },
+  "readText": {
+    "read": "Read",
+    "unread": "Unread"
+  },
+  "readStatusFilter": {
+    "all": "All",
+    "read": "Read",
+    "unread": "Unread"
+  },
+  "publish": {
+    "title": "Publish",
+    "publish": "Publish",
+    "detail": "Detail",
+    "sendScope": "Scope",
+    "receiverCount": "Receivers",
+    "deptIds": "Departments",
+    "userIds": "Users",
+    "link": "Link",
+    "selectReceiver": "Please select recipients first",
+    "sendSuccess": "Sent",
+    "sendScopeText": {
+      "all": "All",
+      "dept": "Department",
+      "user": "User",
+      "mixed": "Department + User",
+      "unknown": "Unknown"
+    }
+  }
+}

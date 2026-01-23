@@ -1,0 +1,37 @@
+{
+  "title": "Audit Logs",
+  "name": "Logs",
+  "success": "Success",
+  "fail": "Fail",
+  "selectToDelete": "Please select data to delete",
+  "batchDelete": "Batch Delete",
+  "batchDeleteConfirm": "Are you sure you want to delete the selected data? This operation cannot be undone.",
+  "clear": "Clear",
+  "clearConfirm": "Are you sure you want to clear all data? This operation cannot be undone.",
+  "clearSuccess": "Cleared successfully",
+  "operationLog": {
+    "title": "Operation Log",
+    "username": "Username",
+    "module": "Module",
+    "action": "Action",
+    "method": "Method",
+    "url": "URL",
+    "ip": "IP",
+    "status": "Status",
+    "duration": "Duration(ms)",
+    "createTime": "Time",
+    "operation": "Operation"
+  },
+  "loginLog": {
+    "title": "Login Log",
+    "username": "Username",
+    "ip": "IP",
+    "browser": "Browser",
+    "os": "OS",
+    "status": "Status",
+    "message": "Message",
+    "createTime": "Time",
+    "operation": "Operation"
+  }
+}
+

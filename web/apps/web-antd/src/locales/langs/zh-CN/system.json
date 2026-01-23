@@ -1,0 +1,126 @@
+{
+  "title": "系统管理",
+  "dept": {
+    "list": "部门列表",
+    "createTime": "创建时间",
+    "deptName": "部门名称",
+    "name": "部门",
+    "operation": "操作",
+    "parentDept": "上级部门",
+    "remark": "备注",
+    "status": "状态",
+    "title": "部门管理"
+  },
+  "menu": {
+    "list": "菜单列表",
+    "activeIcon": "激活图标",
+    "activePath": "激活路径",
+    "activePathHelp": "跳转到当前路由时，需要激活的菜单路径。\n当不在导航菜单中显示时，需要指定激活路径",
+    "activePathMustExist": "该路径未能找到有效的菜单",
+    "advancedSettings": "其它设置",
+    "affixTab": "固定在标签",
+    "authCode": "权限标识",
+    "badge": "徽章内容",
+    "badgeVariants": "徽标样式",
+    "badgeType": {
+      "dot": "点",
+      "none": "无",
+      "normal": "文字",
+      "title": "徽标类型"
+    },
+    "component": "页面组件",
+    "hideChildrenInMenu": "隐藏子菜单",
+    "hideInBreadcrumb": "在面包屑中隐藏",
+    "hideInMenu": "隐藏菜单",
+    "hideInTab": "在标签栏中隐藏",
+    "icon": "图标",
+    "keepAlive": "缓存标签页",
+    "linkSrc": "链接地址",
+    "menuName": "菜单名称",
+    "menuTitle": "标题",
+    "order": "菜单排序",
+    "orderHelp": "数字越小越靠前",
+    "name": "菜单",
+    "operation": "操作",
+    "parent": "上级菜单",
+    "path": "路由地址",
+    "status": "状态",
+    "title": "菜单管理",
+    "type": "类型",
+    "typeButton": "按钮",
+    "typeCatalog": "目录",
+    "typeEmbedded": "内嵌",
+    "typeLink": "外链",
+    "typeMenu": "菜单"
+  },
+  "role": {
+    "title": "角色管理",
+    "list": "角色列表",
+    "name": "角色",
+    "roleName": "角色名称",
+    "id": "角色ID",
+    "status": "状态",
+    "remark": "备注",
+    "createTime": "创建时间",
+    "operation": "操作",
+    "permissions": "权限",
+    "setPermissions": "授权"
+  },
+  "user": {
+    "title": "用户管理",
+    "list": "用户列表",
+    "name": "用户",
+    "username": "用户名",
+    "password": "密码",
+    "realName": "姓名",
+    "dept": "部门",
+    "roles": "角色",
+    "status": "状态",
+    "createTime": "创建时间",
+    "operation": "操作",
+    "resetPassword": "重置密码"
+  },
+  "notice": {
+    "send": "发送消息"
+  },
+  "dict": {
+    "title": "数据字典",
+    "type": {
+      "title": "字典类型",
+      "name": "字典名称",
+      "code": "字典编码",
+      "status": "状态",
+      "remark": "备注",
+      "createTime": "创建时间",
+      "operation": "操作"
+    },
+    "data": {
+      "title": "字典数据",
+      "typeCode": "字典类型",
+      "label": "字典标签",
+      "value": "字典值",
+      "sort": "排序",
+      "status": "状态",
+      "style": "样式",
+      "remark": "备注",
+      "createTime": "创建时间",
+      "operation": "操作"
+    }
+  },
+  "config": {
+    "title": "参数配置",
+    "name": "参数配置",
+    "configName": "配置名称",
+    "configKey": "配置键",
+    "configValue": "配置值",
+    "status": "状态",
+    "isBuiltin": "内置",
+    "remark": "备注",
+    "createTime": "创建时间",
+    "operation": "操作"
+  },
+  "tools": {
+    "title": "系统工具",
+    "formGenerator": "表单生成"
+  }
+}

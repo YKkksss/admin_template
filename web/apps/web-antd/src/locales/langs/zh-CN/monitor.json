@@ -1,0 +1,37 @@
+{
+  "title": "日志审计",
+  "name": "日志",
+  "success": "成功",
+  "fail": "失败",
+  "selectToDelete": "请选择要删除的数据",
+  "batchDelete": "批量删除",
+  "batchDeleteConfirm": "确认删除选中的数据吗？该操作不可恢复。",
+  "clear": "清空",
+  "clearConfirm": "确认清空所有数据吗？该操作不可恢复。",
+  "clearSuccess": "清空成功",
+  "operationLog": {
+    "title": "操作日志",
+    "username": "用户名",
+    "module": "模块",
+    "action": "动作",
+    "method": "方法",
+    "url": "URL",
+    "ip": "IP",
+    "status": "状态",
+    "duration": "耗时(ms)",
+    "createTime": "时间",
+    "operation": "操作"
+  },
+  "loginLog": {
+    "title": "登录日志",
+    "username": "用户名",
+    "ip": "IP",
+    "browser": "浏览器",
+    "os": "系统",
+    "status": "状态",
+    "message": "消息",
+    "createTime": "时间",
+    "operation": "操作"
+  }
+}
+

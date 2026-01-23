@@ -1,0 +1,50 @@
+{
+  "name": "消息",
+  "title": "消息通知",
+  "list": "消息列表",
+  "keyword": "关键词",
+  "messageTitle": "标题",
+  "summary": "摘要",
+  "content": "内容",
+  "type": "类型",
+  "readStatus": "已读状态",
+  "createTime": "时间",
+  "operation": "操作",
+  "detail": "详情",
+  "batchDelete": "批量删除",
+  "batchDeleteConfirm": "确定删除选中的消息吗？",
+  "selectToDelete": "请先勾选要删除的消息",
+  "typeText": {
+    "1": "通知",
+    "2": "公告",
+    "3": "警告"
+  },
+  "readText": {
+    "read": "已读",
+    "unread": "未读"
+  },
+  "readStatusFilter": {
+    "all": "全部",
+    "read": "已读",
+    "unread": "未读"
+  },
+  "publish": {
+    "title": "消息发布",
+    "publish": "发布消息",
+    "detail": "发布详情",
+    "sendScope": "发布范围",
+    "receiverCount": "接收人数",
+    "deptIds": "接收部门",
+    "userIds": "接收用户",
+    "link": "跳转链接",
+    "selectReceiver": "请选择接收范围",
+    "sendSuccess": "发送成功",
+    "sendScopeText": {
+      "all": "全部人",
+      "dept": "部门",
+      "user": "指定用户",
+      "mixed": "部门+指定用户",
+      "unknown": "未知"
+    }
+  }
+}
