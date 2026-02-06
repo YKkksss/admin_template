@@ -28,6 +28,11 @@ export namespace NoticeApi {
     total: number;
   }
 
+  export interface UnreadCountResult {
+    unread: number;
+    bellUnread: number;
+  }
+
   export type SendScope = 'all' | 'dept' | 'user' | 'mixed' | 'unknown';
 
   export interface OutboxItem {
@@ -110,6 +115,13 @@ export async function readAllBellNoticesApi() {
 }
 
 /**
+ * 获取未读统计
+ */
+export async function getUnreadCountApi() {
+  return requestClient.get<NoticeApi.UnreadCountResult>('/notice/unread-count');
+}
+
+/**
  * 获取收件箱列表（分页）
  */
 export async function getInboxNoticesApi(params: NoticeApi.InboxListParams) {
@@ -130,6 +142,20 @@ export async function getInboxNoticeDetailApi(id: number) {
  */
 export async function markInboxNoticeReadApi(id: number) {
   return requestClient.post<boolean>(`/notice/inbox/${id}/read`);
+}
+
+/**
+ * 批量标记已读
+ */
+export async function markInboxNoticeReadBatchApi(ids: number[]) {
+  return requestClient.post<number>('/notice/inbox/read-batch', { ids });
+}
+
+/**
+ * 全部标记已读
+ */
+export async function markInboxNoticeReadAllApi() {
+  return requestClient.post<number>('/notice/inbox/read-all');
 }
 
 /**

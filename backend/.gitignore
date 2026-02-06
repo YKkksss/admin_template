@@ -21,3 +21,6 @@ dist/
 # 本地数据库（如使用 SQLite）
 *.db
 
+# 本地文件存储（上传附件）
+storage/files/*
+!storage/files/.gitkeep

@@ -57,7 +57,10 @@ async def is_menu_path_exists(
 
 
 @router.post("", response_model=ApiResponse[int])
-async def create_menu(payload: SystemMenuCreate, _user=Depends(require_permissions("System:Menu:Create"))):
+async def create_menu(
+    payload: SystemMenuCreate,
+    _user=Depends(require_permissions("System:Menu:Create")),
+):
     """创建菜单。"""
 
     data = _normalize_menu_payload(payload)

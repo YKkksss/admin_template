@@ -263,7 +263,8 @@ async def seed_system_menus_and_roles() -> None:
     if dict_update_fields:
         await system_dict.save(update_fields=dict_update_fields)
 
-    # 兼容旧数据：如果还存在旧的 SystemDictType 菜单，则将其隐藏并挂载到 System 目录下（保留历史路由可访问）
+    # 兼容旧数据：如果还存在旧的 SystemDictType 菜单，则将其隐藏并挂载到 System 目录下。
+    # 说明：保留历史路由可访问，避免老链接/书签失效。
     legacy_dict_type = await Menu.get_or_none(name="SystemDictType")
     if legacy_dict_type:
         legacy_update_fields: list[str] = []
@@ -629,6 +630,98 @@ async def seed_system_menus_and_roles() -> None:
             "status": 1,
         },
     )
+    await _get_or_create_menu(
+        name="SystemUserImport",
+        parent=system_user,
+        defaults={
+            "type": "button",
+            "auth_code": "System:User:Import",
+            "meta": {"title": "system.user.import"},
+            "status": 1,
+        },
+    )
+    await _get_or_create_menu(
+        name="SystemUserExport",
+        parent=system_user,
+        defaults={
+            "type": "button",
+            "auth_code": "System:User:Export",
+            "meta": {"title": "system.user.export"},
+            "status": 1,
+        },
+    )
+
+    # 在线用户/会话管理
+    system_session = await _get_or_create_menu(
+        name="SystemSession",
+        parent=system_catalog,
+        defaults={
+            "type": "menu",
+            "path": "/system/session",
+            "component": "/system/session/list",
+            "auth_code": "System:Session:List",
+            "meta": {"icon": "carbon:user-activity", "title": "system.session.title", "order": 30},
+            "status": 1,
+        },
+    )
+    system_session_kick = await _get_or_create_menu(
+        name="SystemSessionKick",
+        parent=system_session,
+        defaults={
+            "type": "button",
+            "auth_code": "System:Session:Kick",
+            "meta": {"title": "system.session.kick"},
+            "status": 1,
+        },
+    )
+
+    # 文件/附件管理
+    system_file = await _get_or_create_menu(
+        name="SystemFile",
+        parent=system_catalog,
+        defaults={
+            "type": "menu",
+            "path": "/system/file",
+            "component": "/system/file/list",
+            "auth_code": "System:File:List",
+            "meta": {
+                "icon": "carbon:document-attachment",
+                "title": "system.file.title",
+                "order": 25,
+            },
+            "status": 1,
+        },
+    )
+    system_file_upload = await _get_or_create_menu(
+        name="SystemFileUpload",
+        parent=system_file,
+        defaults={
+            "type": "button",
+            "auth_code": "System:File:Upload",
+            "meta": {"title": "system.file.upload"},
+            "status": 1,
+        },
+    )
+    system_file_download = await _get_or_create_menu(
+        name="SystemFileDownload",
+        parent=system_file,
+        defaults={
+            "type": "button",
+            "auth_code": "System:File:Download",
+            "meta": {"title": "system.file.download"},
+            "status": 1,
+        },
+    )
+    system_file_delete = await _get_or_create_menu(
+        name="SystemFileDelete",
+        parent=system_file,
+        defaults={
+            "type": "button",
+            "auth_code": "System:File:Delete",
+            "meta": {"title": "common.delete"},
+            "status": 1,
+        },
+    )
 
     # 消息通知：发送权限（仅管理员/超级管理员使用）
     notice_send = await _get_or_create_menu(
@@ -718,10 +811,16 @@ async def seed_system_menus_and_roles() -> None:
 
     # 默认角色：user
     user_role, _ = await Role.get_or_create(code="user", defaults={"name": "普通用户"})
+    if user_role.data_scope != "self":
+        user_role.data_scope = "self"
+        await user_role.save(update_fields=["data_scope"])
     await user_role.menus.add(workspace, analytics, notice_menu)
 
     # 默认角色：admin（可选）
     admin_role, _ = await Role.get_or_create(code="admin", defaults={"name": "管理员"})
+    if admin_role.data_scope != "all":
+        admin_role.data_scope = "all"
+        await admin_role.save(update_fields=["data_scope"])
     await admin_role.menus.add(
         workspace,
         analytics,
@@ -732,6 +831,12 @@ async def seed_system_menus_and_roles() -> None:
         system_role,
         system_dept,
         system_user,
+        system_session,
+        system_session_kick,
+        system_file,
+        system_file_upload,
+        system_file_download,
+        system_file_delete,
         system_dict,
         system_dict_data,
         system_dict_type_create,
@@ -806,6 +911,18 @@ async def seed_system_menus_and_roles() -> None:
         },
     )
 
+    # 内置系统配置：登录模式（single=单端登录，multi=多端登录）
+    await Config.get_or_create(
+        key="auth.login.mode",
+        defaults={
+            "name": "登录模式",
+            "value": "multi",
+            "status": 1,
+            "is_builtin": True,
+            "remark": "single=单端登录，multi=多端登录",
+        },
+    )
+
 
 async def seed_superuser() -> None:
     """
@@ -828,6 +945,9 @@ async def seed_superuser() -> None:
         code=settings.SUPERUSER_ROLE_CODE,
         defaults={"name": settings.SUPERUSER_ROLE_NAME},
     )
+    if role.data_scope != "all":
+        role.data_scope = "all"
+        await role.save(update_fields=["data_scope"])
 
     user = await User.get_or_none(username=settings.SUPERUSER_USERNAME)
     if not user:

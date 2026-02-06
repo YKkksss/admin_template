@@ -384,7 +384,10 @@ onUnmounted(() => {
             </VbenHelpTooltip>
           </div>
         </slot>
-        <slot name="toolbar-actions" v-bind="slotProps"> </slot>
+        <!-- 统一给多按钮操作区添加间距，避免按钮“粘连”在一起 -->
+        <div class="flex flex-wrap items-center gap-[10px]">
+          <slot name="toolbar-actions" v-bind="slotProps"></slot>
+        </div>
       </template>
 
       <!-- 继承默认的slot -->

@@ -8,6 +8,8 @@ from app.api.v1.deps import require_permissions
 from app.models.dept import Dept
 from app.schemas.response import ApiResponse, ok
 from app.schemas.system_dept import SystemDeptCreate, SystemDeptOut, SystemDeptUpdate
+from app.schemas.user import CurrentUser
+from app.services.data_scope import build_data_scope_q
 
 router = APIRouter()
 
@@ -31,10 +33,15 @@ def _node_from_dept(dept: Dept) -> dict:
 
 
 @router.get("/list", response_model=ApiResponse[list[SystemDeptOut]])
-async def list_depts(_user=Depends(require_permissions("System:Dept:List"))):
+async def list_depts(current_user: CurrentUser = Depends(require_permissions("System:Dept:List"))):
     """获取部门树（用于部门管理与表单选择）。"""
 
-    depts = await Dept.all().order_by("id")
+    qs = Dept.all()
+    data_q = await build_data_scope_q(current_user, dept_field="id")
+    if data_q is not None:
+        qs = qs.filter(data_q)
+
+    depts = await qs.order_by("id")
     if not depts:
         return ok([])  # type: ignore[arg-type]
 
@@ -56,7 +63,10 @@ async def list_depts(_user=Depends(require_permissions("System:Dept:List"))):
 
 
 @router.post("", response_model=ApiResponse[int])
-async def create_dept(payload: SystemDeptCreate, _user=Depends(require_permissions("System:Dept:Create"))):
+async def create_dept(
+    payload: SystemDeptCreate,
+    _user=Depends(require_permissions("System:Dept:Create")),
+):
     """创建部门。"""
 
     pid = payload.pid or 0
@@ -93,9 +103,15 @@ async def update_dept(
         if pid:
             parent = await Dept.get_or_none(id=pid)
             if not parent:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="上级部门不存在")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="上级部门不存在",
+                )
             if parent.id == dept_id:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="上级部门不能是自己")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="上级部门不能是自己",
+                )
             dept.parent = parent
         else:
             dept.parent = None
@@ -115,7 +131,10 @@ async def delete_dept(dept_id: int, _user=Depends(require_permissions("System:De
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="部门不存在")
 
     if await Dept.filter(parent_id=dept_id).exists():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="存在下级部门，无法删除")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="存在下级部门，无法删除",
+        )
 
     await dept.delete()
     return ok(True)

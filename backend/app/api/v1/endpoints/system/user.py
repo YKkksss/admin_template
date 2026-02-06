@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
+from io import BytesIO
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from openpyxl import Workbook
+from starlette.responses import StreamingResponse
 from tortoise.expressions import Q
 
 from app.api.v1.deps import require_permissions
@@ -11,6 +16,7 @@ from app.core.security import get_password_hash
 from app.models.dept import Dept
 from app.models.role import Role
 from app.models.user import User
+from app.schemas.import_export import ImportErrorItem, ImportResult
 from app.schemas.response import ApiResponse, ok
 from app.schemas.system_user import (
     SystemUserCreate,
@@ -19,8 +25,39 @@ from app.schemas.system_user import (
     SystemUserUpdate,
 )
 from app.schemas.user import CurrentUser
+from app.services.data_scope import build_data_scope_q
+from app.utils.excel import ExcelColumn, append_sheet, export_xlsx_bytes, parse_xlsx_rows
 
 router = APIRouter()
+
+_XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _xlsx_response(content: bytes, filename: str) -> StreamingResponse:
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
+    return StreamingResponse(BytesIO(content), media_type=_XLSX_MEDIA_TYPE, headers=headers)
+
+
+def _user_export_columns() -> list[ExcelColumn]:
+    return [
+        ExcelColumn(title="用户名", key="username"),
+        ExcelColumn(title="姓名", key="realName"),
+        ExcelColumn(title="部门", key="deptName"),
+        ExcelColumn(title="角色", key="roleNames"),
+        ExcelColumn(title="状态", key="statusText"),
+        ExcelColumn(title="创建时间", key="createTime"),
+    ]
+
+
+def _user_import_columns() -> list[ExcelColumn]:
+    return [
+        ExcelColumn(title="用户名", key="username", required=True),
+        ExcelColumn(title="密码", key="password", required=True),
+        ExcelColumn(title="姓名", key="realName", required=True),
+        ExcelColumn(title="部门名称", key="deptName", required=False),
+        ExcelColumn(title="角色编码", key="roleCodes", required=False),
+        ExcelColumn(title="状态", key="status", required=False),
+    ]
 
 
 def _format_dt(dt: datetime | None) -> str | None:
@@ -75,11 +112,14 @@ async def list_users(
     realName: str | None = Query(default=None),
     deptId: int | None = Query(default=None),
     status_: str | None = Query(default=None, alias="status"),
-    _current_user=Depends(require_permissions("System:User:List")),
+    current_user: CurrentUser = Depends(require_permissions("System:User:List")),
 ):
     """获取用户列表（分页）。"""
 
     qs = User.all()
+    data_q = await build_data_scope_q(current_user, dept_field="dept_id", user_field="id")
+    if data_q is not None:
+        qs = qs.filter(data_q)
     if username:
         qs = qs.filter(username__icontains=username)
     if realName:
@@ -117,6 +157,280 @@ async def list_users(
         )
 
     return ok({"items": items, "total": total})
+
+
+@router.get("/export")
+async def export_users(
+    username: str | None = Query(default=None),
+    realName: str | None = Query(default=None),
+    deptId: int | None = Query(default=None),
+    status_: str | None = Query(default=None, alias="status"),
+    current_user: CurrentUser = Depends(require_permissions("System:User:Export")),
+):
+    """导出用户列表（Excel）。"""
+
+    qs = User.all()
+    data_q = await build_data_scope_q(current_user, dept_field="dept_id", user_field="id")
+    if data_q is not None:
+        qs = qs.filter(data_q)
+
+    if username and username.strip():
+        qs = qs.filter(username__icontains=username.strip())
+    if realName and realName.strip():
+        qs = qs.filter(real_name__icontains=realName.strip())
+    if deptId:
+        qs = qs.filter(dept_id=deptId)
+    if status_ in {"0", "1"}:
+        qs = qs.filter(is_active=(status_ == "1"))
+
+    total = await qs.count()
+    if total > settings.EXCEL_EXPORT_MAX_ROWS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"导出数据量过大（{total}），最大允许 {settings.EXCEL_EXPORT_MAX_ROWS} 行",
+        )
+
+    users = await qs.order_by("-id").limit(settings.EXCEL_EXPORT_MAX_ROWS).prefetch_related(
+        "roles",
+        "dept",
+    )
+
+    rows: list[dict] = []
+    for u in users:
+        roles = list(u.roles) if hasattr(u, "roles") else []
+        rows.append(
+            {
+                "username": u.username,
+                "realName": u.real_name,
+                "deptName": u.dept.name if u.dept else None,
+                "roleNames": "、".join([str(r.name) for r in roles]),
+                "statusText": "启用" if u.is_active else "禁用",
+                "createTime": _format_dt(u.created_at),
+            },
+        )
+
+    content = export_xlsx_bytes(sheet_name="用户列表", columns=_user_export_columns(), rows=rows)
+    filename = f"用户列表_{datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx"
+    return _xlsx_response(content, filename)
+
+
+@router.get("/import/template")
+async def download_user_import_template(
+    _current_user: CurrentUser = Depends(require_permissions("System:User:Import")),
+):
+    """下载用户导入模板（Excel）。"""
+
+    wb = Workbook()
+    # openpyxl 默认会创建一个 sheet，这里移除后按我们想要的顺序追加
+    wb.remove(wb.active)
+
+    append_sheet(
+        wb,
+        sheet_name="用户导入模板",
+        columns=_user_import_columns(),
+        rows=[],
+    )
+
+    roles = await Role.all().order_by("id")
+    append_sheet(
+        wb,
+        sheet_name="角色参考",
+        columns=[
+            ExcelColumn(title="角色编码", key="code"),
+            ExcelColumn(title="角色名称", key="name"),
+            ExcelColumn(title="状态", key="statusText"),
+        ],
+        rows=[
+            {
+                "code": r.code,
+                "name": r.name,
+                "statusText": "启用" if r.status == 1 else "禁用",
+            }
+            for r in roles
+        ],
+    )
+
+    depts = await Dept.all().prefetch_related("parent").order_by("id")
+    append_sheet(
+        wb,
+        sheet_name="部门参考",
+        columns=[
+            ExcelColumn(title="部门名称", key="name"),
+            ExcelColumn(title="上级部门", key="parentName"),
+            ExcelColumn(title="状态", key="statusText"),
+        ],
+        rows=[
+            {
+                "name": d.name,
+                "parentName": d.parent.name if d.parent else None,
+                "statusText": "启用" if d.status == 1 else "禁用",
+            }
+            for d in depts
+        ],
+    )
+
+    buf = BytesIO()
+    wb.save(buf)
+    return _xlsx_response(buf.getvalue(), "用户导入模板.xlsx")
+
+
+@router.post("/import", response_model=ApiResponse[ImportResult])
+async def import_users(
+    file: UploadFile = File(..., description="xlsx 文件"),
+    current_user: CurrentUser = Depends(require_permissions("System:User:Import")),
+):
+    """批量导入用户（Excel）。"""
+
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持 .xlsx 文件")
+
+    content = await file.read()
+    try:
+        parsed_rows, parse_errors = parse_xlsx_rows(
+            content=content,
+            columns=_user_import_columns(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if len(parsed_rows) > settings.EXCEL_IMPORT_MAX_ROWS:
+        max_rows = settings.EXCEL_IMPORT_MAX_ROWS
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"导入数据量过大（{len(parsed_rows)}），最大允许 {max_rows} 行",
+        )
+
+    result = ImportResult(total=len(parsed_rows))
+    bad_rows = {e.row for e in parse_errors}
+    for e in parse_errors:
+        result.errors.append(ImportErrorItem(row=e.row, column=e.column, message=e.message))
+
+    # 预加载角色与部门（减少循环内的数据库查询次数）
+    roles = await Role.filter(status=1).all()
+    role_by_code = {str(r.code).strip(): r for r in roles if r.code}
+
+    depts = await Dept.filter(status=1).all()
+    dept_by_name: dict[str, list[Dept]] = {}
+    for d in depts:
+        name = (d.name or "").strip()
+        if not name:
+            continue
+        dept_by_name.setdefault(name, []).append(d)
+
+    def parse_status(val: object | None) -> int:
+        if val is None or val == "":
+            return 1
+        if isinstance(val, bool):
+            return 1 if val else 0
+        if isinstance(val, (int, float)):
+            v = int(val)
+            if v in {0, 1}:
+                return v
+            raise ValueError("状态只能是 0 或 1")
+        s = str(val).strip()
+        if s in {"0", "禁用", "停用", "否", "false", "False"}:
+            return 0
+        if s in {"1", "启用", "正常", "是", "true", "True"}:
+            return 1
+        raise ValueError("状态只能填写 0/1 或 启用/禁用")
+
+    def parse_role_codes(val: object | None) -> list[str]:
+        if val is None or val == "":
+            return []
+        s = str(val).strip()
+        if not s:
+            return []
+        parts = [p.strip() for p in re.split(r"[,\n;，；、\s]+", s) if p and p.strip()]
+        # 去重但保持顺序
+        seen: set[str] = set()
+        codes: list[str] = []
+        for p in parts:
+            if p in seen:
+                continue
+            seen.add(p)
+            codes.append(p)
+        return codes
+
+    # 一次性查出本次导入中“已存在”的用户名，避免逐行 exists() 查询
+    import_usernames: list[str] = []
+    for row_idx, row in parsed_rows:
+        if row_idx in bad_rows:
+            continue
+        u = row.get("username")
+        if isinstance(u, str) and u.strip():
+            import_usernames.append(u.strip())
+    existing_usernames = set()
+    if import_usernames:
+        unique_usernames = list(set(import_usernames))
+        existing_usernames = set(
+            await User.filter(username__in=unique_usernames).values_list(
+                "username",
+                flat=True,
+            ),
+        )
+
+    seen_in_file: set[str] = set()
+    for row_idx, row in parsed_rows:
+        if row_idx in bad_rows:
+            result.failed += 1
+            continue
+
+        try:
+            username = str(row.get("username") or "").strip()
+            password = str(row.get("password") or "").strip()
+            real_name = str(row.get("realName") or "").strip()
+            dept_name = str(row.get("deptName") or "").strip()
+            role_codes = parse_role_codes(row.get("roleCodes"))
+            status_val = parse_status(row.get("status"))
+
+            if not username:
+                raise ValueError("用户名不能为空")
+            if username in seen_in_file:
+                raise ValueError("用户名在文件中重复")
+            seen_in_file.add(username)
+            if username in existing_usernames:
+                raise ValueError("用户名已存在")
+            if not real_name:
+                raise ValueError("姓名不能为空")
+
+            _validate_password(password)
+
+            dept = None
+            if dept_name:
+                cands = dept_by_name.get(dept_name) or []
+                if not cands:
+                    raise ValueError(f"部门不存在：{dept_name}")
+                if len(cands) > 1:
+                    raise ValueError(f"部门名称不唯一，请使用更精确的部门：{dept_name}")
+                dept = cands[0]
+
+            role_ids: list[int] = []
+            if role_codes:
+                for code in role_codes:
+                    role = role_by_code.get(code)
+                    if not role:
+                        raise ValueError(f"角色不存在或已禁用：{code}")
+                    role_ids.append(int(role.id))
+
+            user = await User.create(
+                username=username,
+                password_hash=get_password_hash(password),
+                real_name=real_name,
+                is_active=status_val == 1,
+                dept=dept,
+            )
+            await _set_user_roles(user, role_ids, actor=current_user)
+
+            result.success += 1
+        except Exception as exc:  # noqa: BLE001 - 需要汇总错误并继续处理下一行
+            result.failed += 1
+            if isinstance(exc, HTTPException):
+                msg = str(exc.detail)
+            else:
+                msg = str(exc)
+            result.errors.append(ImportErrorItem(row=row_idx, column=None, message=msg))
+
+    return ok(result)
 
 
 @router.post("", response_model=ApiResponse[int])
@@ -171,13 +485,22 @@ async def update_user(
     is_super = await _is_super_user(user)
 
     if is_super and payload.roleIds is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="超级管理员角色不可修改")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="超级管理员角色不可修改",
+        )
 
     if "status" in payload.model_fields_set and payload.status is not None:
         if is_super and payload.status == 0:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="超级管理员不可禁用")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="超级管理员不可禁用",
+            )
         if user.username == current_user.username and payload.status == 0:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能禁用当前登录用户")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="不能禁用当前登录用户",
+            )
 
         user.is_active = payload.status == 1
 
@@ -249,11 +572,14 @@ async def reset_password(
 @router.get("/options", response_model=ApiResponse[list[dict]])
 async def list_user_options(
     keyword: str | None = Query(default=None),
-    _current_user=Depends(require_permissions("System:User:List")),
+    current_user: CurrentUser = Depends(require_permissions("System:User:List")),
 ):
     """获取用户选项（用于下拉选择）。"""
 
     qs = User.filter(is_active=True)
+    data_q = await build_data_scope_q(current_user, dept_field="dept_id", user_field="id")
+    if data_q is not None:
+        qs = qs.filter(data_q)
     if keyword and keyword.strip():
         kw = keyword.strip()
         qs = qs.filter(Q(username__icontains=kw) | Q(real_name__icontains=kw))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import bcrypt
 from jose import JWTError, jwt
@@ -35,6 +36,7 @@ def create_access_token(
     subject: str,
     roles: list[str] | None = None,
     expires_minutes: int | None = None,
+    jti: str | None = None,
 ) -> str:
     """创建 AccessToken（JWT）。"""
 
@@ -42,12 +44,14 @@ def create_access_token(
         expires_minutes if expires_minutes is not None else settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
     )
     expire_at = datetime.now(UTC) + timedelta(minutes=expire_minutes)
+    token_id = jti or uuid4().hex
 
     payload = {
         "sub": subject,
         "roles": roles or [],
         "exp": expire_at,
         "iat": datetime.now(UTC),
+        "jti": token_id,
     }
 
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)

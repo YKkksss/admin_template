@@ -8,6 +8,8 @@ from app.api.v1.deps import require_permissions
 from app.models.log import LoginLog
 from app.schemas.monitor_log import IdsPayload, LoginLogOut
 from app.schemas.response import ApiResponse, ok
+from app.schemas.user import CurrentUser
+from app.services.data_scope import get_allowed_user_ids
 
 router = APIRouter()
 
@@ -24,11 +26,14 @@ async def list_login_logs(
     pageSize: int = Query(default=20, ge=1, le=200),
     username: str | None = Query(default=None),
     status_: int | None = Query(default=None, alias="status"),
-    _current_user=Depends(require_permissions("Monitor:LoginLog:List")),
+    current_user: CurrentUser = Depends(require_permissions("Monitor:LoginLog:List")),
 ):
     """获取登录日志列表（分页）。"""
 
     qs = LoginLog.all()
+    allowed_user_ids = await get_allowed_user_ids(current_user)
+    if allowed_user_ids is not None:
+        qs = qs.filter(user_id__in=list(allowed_user_ids) or [0])
     if username:
         qs = qs.filter(username__icontains=username)
     if status_ in (0, 1):
@@ -60,13 +65,18 @@ async def list_login_logs(
 @router.delete("/{log_id}", response_model=ApiResponse[bool])
 async def delete_login_log(
     log_id: int,
-    _current_user=Depends(require_permissions("Monitor:LoginLog:Delete")),
+    current_user: CurrentUser = Depends(require_permissions("Monitor:LoginLog:Delete")),
 ):
     """删除单条登录日志。"""
 
     rec = await LoginLog.get_or_none(id=log_id)
     if not rec:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="日志不存在")
+    allowed_user_ids = await get_allowed_user_ids(current_user)
+    if allowed_user_ids is not None and (
+        rec.user_id is None or int(rec.user_id) not in allowed_user_ids
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限")
     await rec.delete()
     return ok(True)
 
@@ -74,7 +84,7 @@ async def delete_login_log(
 @router.post("/batch-delete", response_model=ApiResponse[bool])
 async def batch_delete_login_logs(
     payload: IdsPayload,
-    _current_user=Depends(require_permissions("Monitor:LoginLog:Delete")),
+    current_user: CurrentUser = Depends(require_permissions("Monitor:LoginLog:Delete")),
 ):
     """批量删除登录日志。"""
 
@@ -82,16 +92,25 @@ async def batch_delete_login_logs(
     if not ids:
         return ok(True)
 
+    allowed_user_ids = await get_allowed_user_ids(current_user)
+    if allowed_user_ids is not None:
+        records = await LoginLog.filter(id__in=ids).all()
+        if any(r.user_id is None or int(r.user_id) not in allowed_user_ids for r in records):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限")
+
     await LoginLog.filter(id__in=ids).delete()
     return ok(True)
 
 
 @router.post("/clear", response_model=ApiResponse[bool])
 async def clear_login_logs(
-    _current_user=Depends(require_permissions("Monitor:LoginLog:Delete")),
+    current_user: CurrentUser = Depends(require_permissions("Monitor:LoginLog:Delete")),
 ):
     """清空登录日志（危险操作）。"""
 
-    await LoginLog.all().delete()
+    allowed_user_ids = await get_allowed_user_ids(current_user)
+    if allowed_user_ids is None:
+        await LoginLog.all().delete()
+    else:
+        await LoginLog.filter(user_id__in=list(allowed_user_ids) or [0]).delete()
     return ok(True)
-

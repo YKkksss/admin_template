@@ -77,7 +77,10 @@ async def change_password(
 
     # 新旧密码相同则提示
     if payload.oldPassword == new_pwd:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="新密码不能与旧密码相同")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="新密码不能与旧密码相同",
+        )
 
     user.password_hash = get_password_hash(new_pwd)
     await user.save()

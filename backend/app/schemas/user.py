@@ -6,6 +6,7 @@ class CurrentUser(BaseModel):
 
     username: str = Field(..., description="用户名")
     roles: list[str] = Field(default_factory=list, description="角色标识列表")
+    jti: str | None = Field(default=None, description="Token ID（用于会话校验）")
 
 
 class UserInfo(BaseModel):

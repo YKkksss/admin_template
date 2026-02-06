@@ -32,6 +32,13 @@ class NoticeDetail(BaseModel):
     readTime: str | None = Field(default=None, description="已读时间（格式化字符串）")
 
 
+class NoticeUnreadCount(BaseModel):
+    """未读统计。"""
+
+    unread: int = Field(default=0, description="收件箱未读总数（包含铃铛隐藏的未读）")
+    bellUnread: int = Field(default=0, description="铃铛未读数（未读且未隐藏）")
+
+
 class NoticeOutboxItem(BaseModel):
     """发件箱列表项（消息内容维度）。"""
 

@@ -3,11 +3,20 @@ import type { Recordable } from '@vben/types';
 import { requestClient } from '#/api/request';
 
 export namespace SystemRoleApi {
+  export type RoleDataScope =
+    | 'all'
+    | 'custom'
+    | 'dept'
+    | 'dept_and_children'
+    | 'self';
+
   export interface SystemRole {
     [key: string]: any;
     id: string;
     name: string;
     permissions: Array<number | string>;
+    dataScope?: RoleDataScope;
+    deptIds?: Array<number | string>;
     remark?: string;
     status: 0 | 1;
     createTime?: string;

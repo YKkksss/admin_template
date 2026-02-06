@@ -8,6 +8,7 @@ from app.schemas.auth import LoginRequest, LoginResponse, RegisterRequest, Regis
 from app.schemas.response import ApiResponse, ok
 from app.schemas.user import CurrentUser
 from app.services.auth import auth_service
+from app.services.session import session_service
 from app.utils.user_agent import parse_browser, parse_os
 
 router = APIRouter()
@@ -24,7 +25,7 @@ async def login(payload: LoginRequest, request: Request):
     ip = request.client.host if request.client else None
     ua = request.headers.get("user-agent")
 
-    token = await auth_service.login(username, payload.password)
+    token = await auth_service.login(username, payload.password, ip=ip, user_agent=ua)
     if not token:
         try:
             await LoginLog.create(
@@ -86,9 +87,19 @@ async def register(payload: RegisterRequest):
 
 
 @router.post("/logout", response_model=ApiResponse[str])
-async def logout():
-    """退出登录（基础占位实现）。"""
+async def logout(current_user: CurrentUser = Depends(get_current_user)):
+    """退出登录：撤销当前会话。"""
 
+    try:
+        await session_service.revoke_by_jti(
+            username=current_user.username,
+            jti=current_user.jti,
+            revoked_by=current_user.username,
+            reason="用户退出登录",
+        )
+    except Exception:
+        # 退出登录不影响前端清理本地状态，失败时忽略即可
+        pass
     return ok("")
 
 

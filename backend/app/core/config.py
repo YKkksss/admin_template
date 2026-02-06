@@ -53,6 +53,11 @@ class Settings(BaseSettings):
         description="AccessToken 过期分钟数",
     )
 
+    SESSION_LOGIN_MODE: str | None = Field(
+        default=None,
+        description="登录会话模式：single/multi（为空则读取系统配置 auth.login.mode，默认 multi）",
+    )
+
     INIT_SUPERUSER: bool = Field(
         default=False,
         description="启动时是否初始化超级管理员（仅建议开发环境开启）",
@@ -69,6 +74,15 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:5173", "http://localhost:3000"],
         description="允许跨域的来源列表",
     )
+
+    FILE_STORAGE_ROOT: Path = Field(
+        default=_BACKEND_DIR / "storage" / "files",
+        description="本地文件存储根目录（仅 local 存储使用）",
+    )
+    FILE_MAX_SIZE_MB: int = Field(default=50, description="上传文件大小限制（MB）")
+
+    EXCEL_EXPORT_MAX_ROWS: int = Field(default=20000, description="Excel 导出最大行数")
+    EXCEL_IMPORT_MAX_ROWS: int = Field(default=5000, description="Excel 导入最大行数")
 
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":

@@ -3,6 +3,7 @@ import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { MonitorLogApi } from '#/api/monitor/log';
 
 import { Page } from '@vben/common-ui';
+import { Eraser, Trash2 } from '@vben/icons';
 
 import { Button, message, Modal } from 'ant-design-vue';
 
@@ -131,13 +132,14 @@ async function onClear() {
     <Grid>
       <template #toolbar-actions>
         <Button danger type="primary" @click="onBatchDelete">
+          <Trash2 class="mr-1 size-5" />
           {{ $t('monitor.batchDelete') }}
         </Button>
-        <Button class="ml-2" danger @click="onClear">
+        <Button danger @click="onClear">
+          <Eraser class="mr-1 size-5" />
           {{ $t('monitor.clear') }}
         </Button>
       </template>
     </Grid>
   </Page>
 </template>
-

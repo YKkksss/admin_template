@@ -8,7 +8,13 @@ from tortoise.expressions import Q
 from app.api.v1.deps import get_current_user
 from app.models.notice import Notice, UserNotice
 from app.models.user import User
-from app.schemas.notice import NoticeDetail, NoticeIdsRequest, NoticeInboxItem, format_dt
+from app.schemas.notice import (
+    NoticeDetail,
+    NoticeIdsRequest,
+    NoticeInboxItem,
+    NoticeUnreadCount,
+    format_dt,
+)
 from app.schemas.response import ApiResponse, ok
 from app.schemas.user import CurrentUser
 
@@ -98,6 +104,23 @@ async def read_all_bell(current_user: CurrentUser = Depends(get_current_user)):
     return ok(True)
 
 
+@router.get("/unread-count", response_model=ApiResponse[NoticeUnreadCount])
+async def get_unread_count(current_user: CurrentUser = Depends(get_current_user)):
+    """获取未读统计。"""
+
+    user = await User.get_or_none(username=current_user.username, is_active=True)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    unread = await UserNotice.filter(user_id=user.id, is_read=False).count()
+    bell_unread = await UserNotice.filter(
+        user_id=user.id,
+        is_read=False,
+        bell_hidden=False,
+    ).count()
+    return ok(NoticeUnreadCount(unread=int(unread), bellUnread=int(bell_unread)))
+
+
 @router.get("/inbox", response_model=ApiResponse[dict])
 async def inbox_list(
     page: int = Query(default=1, ge=1),
@@ -180,6 +203,44 @@ async def mark_read(
         await un.save()
 
     return ok(True)
+
+
+@router.post("/inbox/read-batch", response_model=ApiResponse[int])
+async def mark_read_batch(
+    payload: NoticeIdsRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """批量标记消息为已读。"""
+
+    user = await User.get_or_none(username=current_user.username, is_active=True)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    ids = [int(i) for i in payload.ids]
+    now = datetime.now().astimezone()
+    updated = await UserNotice.filter(
+        user_id=user.id,
+        id__in=ids,
+        is_read=False,
+    ).update(is_read=True, read_at=now)
+
+    return ok(int(updated))
+
+
+@router.post("/inbox/read-all", response_model=ApiResponse[int])
+async def mark_read_all(current_user: CurrentUser = Depends(get_current_user)):
+    """全部标记为已读（当前用户）。"""
+
+    user = await User.get_or_none(username=current_user.username, is_active=True)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    now = datetime.now().astimezone()
+    updated = await UserNotice.filter(user_id=user.id, is_read=False).update(
+        is_read=True,
+        read_at=now,
+    )
+    return ok(int(updated))
 
 
 @router.delete("/inbox/{user_notice_id}", response_model=ApiResponse[bool])

@@ -8,6 +8,10 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
+from app.core.config import settings
 from app.core.security import (
     create_access_token,
     decode_access_token,
@@ -18,10 +22,18 @@ from app.models.role import Role
 from app.models.user import User
 from app.schemas.user import CurrentUser, UserInfo
 from app.services.menu import get_access_codes_for_roles, get_routes_for_user
+from app.services.session import session_service
 
 
 class AuthService:
-    async def login(self, username: str, password: str) -> str | None:
+    async def login(
+        self,
+        username: str,
+        password: str,
+        *,
+        ip: str | None = None,
+        user_agent: str | None = None,
+    ) -> str | None:
         user = await User.get_or_none(username=username, is_active=True)
         if not user:
             return None
@@ -30,7 +42,20 @@ class AuthService:
 
         roles = await user.roles.filter(status=1).all()
         role_codes = [role.code for role in roles]
-        return create_access_token(subject=user.username, roles=role_codes)
+
+        jti = uuid4().hex
+        token = create_access_token(subject=user.username, roles=role_codes, jti=jti)
+
+        expires_at = datetime.now(UTC) + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+        await session_service.create_session(
+            user=user,
+            jti=jti,
+            expires_at=expires_at,
+            ip=ip,
+            user_agent=user_agent,
+        )
+
+        return token
 
     async def register(self, username: str, password: str) -> User | None:
         """
@@ -68,12 +93,17 @@ class AuthService:
             return None
         username = payload.get("sub")
         roles = payload.get("roles") or []
+        jti = payload.get("jti")
         if not isinstance(username, str):
             return None
         if not isinstance(roles, list):
             roles = []
         roles = [str(r) for r in roles]
-        return CurrentUser(username=username, roles=roles)
+        return CurrentUser(
+            username=username,
+            roles=roles,
+            jti=str(jti) if isinstance(jti, (str, int)) and str(jti) else None,
+        )
 
     async def get_user_info(self, username: str) -> UserInfo | None:
         user = await User.get_or_none(username=username, is_active=True)

@@ -31,6 +31,19 @@ const [ResetPasswordModal, resetPasswordModalApi] = useVbenModal({
 });
 
 const [Grid, gridApi] = useVbenVxeGrid({
+  excel: {
+    import: {
+      authCode: 'System:User:Import',
+      url: '/system/user/import',
+      templateUrl: '/system/user/import/template',
+      templateFilename: '用户导入模板.xlsx',
+    },
+    export: {
+      authCode: 'System:User:Export',
+      url: '/system/user/export',
+      filename: '用户列表.xlsx',
+    },
+  },
   formOptions: {
     schema: useGridFormSchema(),
     submitOnChange: true,
@@ -166,7 +179,7 @@ function onCreate() {
     <ResetPasswordModal @success="onRefresh" />
     <Grid>
       <template #toolbar-actions>
-        <Button type="primary" @click="onCreate">
+        <Button v-access:code="'System:User:Create'" type="primary" @click="onCreate">
           <Plus class="size-5" />
           {{ $t('ui.actionTitle.create', [$t('system.user.name')]) }}
         </Button>

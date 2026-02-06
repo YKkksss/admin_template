@@ -19,25 +19,36 @@ class NoticeWsManager:
     """
 
     def __init__(self) -> None:
-        self._connections: dict[str, set[WebSocket]] = defaultdict(set)
+        # username -> jti -> websockets
+        self._connections: dict[str, dict[str, set[WebSocket]]] = defaultdict(
+            lambda: defaultdict(set),
+        )
         self._lock = asyncio.Lock()
 
-    async def connect(self, username: str, websocket: WebSocket) -> None:
+    async def connect(self, username: str, jti: str, websocket: WebSocket) -> None:
         async with self._lock:
-            self._connections[username].add(websocket)
+            self._connections[username][jti].add(websocket)
 
-    async def disconnect(self, username: str, websocket: WebSocket) -> None:
+    async def disconnect(self, username: str, jti: str, websocket: WebSocket) -> None:
         async with self._lock:
-            conns = self._connections.get(username)
+            user_conns = self._connections.get(username)
+            if not user_conns:
+                return
+            conns = user_conns.get(jti)
             if not conns:
                 return
             conns.discard(websocket)
             if not conns:
+                user_conns.pop(jti, None)
+            if not user_conns:
                 self._connections.pop(username, None)
 
     async def send_to_user(self, username: str, event: dict) -> None:
         async with self._lock:
-            targets = list(self._connections.get(username, set()))
+            user_conns = self._connections.get(username, {})
+            targets: list[WebSocket] = []
+            for conns in user_conns.values():
+                targets.extend(list(conns))
 
         if not targets:
             return
@@ -49,9 +60,28 @@ class NoticeWsManager:
                 # 发送失败通常意味着连接已断开，交由 websocket 断开流程清理
                 continue
 
+    async def send_to_session(self, username: str, jti: str, event: dict) -> None:
+        """仅向指定会话（同一 token 的多标签页）推送事件。"""
+
+        async with self._lock:
+            targets = list(self._connections.get(username, {}).get(jti, set()))
+
+        if not targets:
+            return
+
+        for ws in targets:
+            try:
+                await ws.send_json(event)
+            except Exception:
+                continue
+
     async def broadcast_users(self, usernames: list[str], event: dict) -> None:
         for username in usernames:
             await self.send_to_user(username, event)
+
+    async def broadcast_sessions(self, sessions: list[tuple[str, str]], event: dict) -> None:
+        for username, jti in sessions:
+            await self.send_to_session(username, jti, event)
 
     @staticmethod
     def build_event(event: str, data: dict | None = None) -> dict:
@@ -63,4 +93,3 @@ class NoticeWsManager:
 
 
 notice_ws_manager = NoticeWsManager()
-

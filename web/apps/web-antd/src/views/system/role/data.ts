@@ -2,6 +2,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { SystemRoleApi } from '#/api';
 
+import { getDeptList } from '#/api/system/dept';
 import { $t } from '#/locales';
 
 export function useFormSchema(): VbenFormSchema[] {
@@ -30,6 +31,47 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'Textarea',
       fieldName: 'remark',
       label: $t('system.role.remark'),
+    },
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: false,
+        options: [
+          { label: $t('system.role.dataScopeText.all'), value: 'all' },
+          { label: $t('system.role.dataScopeText.custom'), value: 'custom' },
+          { label: $t('system.role.dataScopeText.dept'), value: 'dept' },
+          {
+            label: $t('system.role.dataScopeText.deptAndChildren'),
+            value: 'dept_and_children',
+          },
+          { label: $t('system.role.dataScopeText.self'), value: 'self' },
+        ],
+      },
+      defaultValue: 'dept',
+      fieldName: 'dataScope',
+      label: $t('system.role.dataScope'),
+      rules: 'required',
+    },
+    {
+      component: 'ApiTreeSelect',
+      componentProps: {
+        allowClear: true,
+        api: getDeptList,
+        childrenField: 'children',
+        class: 'w-full',
+        labelField: 'name',
+        multiple: true,
+        showSearch: true,
+        treeCheckable: true,
+        treeDefaultExpandAll: true,
+        valueField: 'id',
+      },
+      dependencies: {
+        show: (values) => values.dataScope === 'custom',
+        triggerFields: ['dataScope'],
+      },
+      fieldName: 'deptIds',
+      label: $t('system.role.deptIds'),
     },
     {
       component: 'Input',
@@ -125,4 +167,3 @@ export function useColumns<T = SystemRoleApi.SystemRole>(
     },
   ];
 }
-

@@ -1,5 +1,11 @@
 {
   "yes": "是",
-  "no": "否"
+  "no": "否",
+  "import": "导入",
+  "export": "导出",
+  "downloadTemplate": "下载导入模板",
+  "importResult": "导入结果",
+  "importDone": "导入完成",
+  "importFailed": "导入失败",
+  "exportFailed": "导出失败"
 }
-

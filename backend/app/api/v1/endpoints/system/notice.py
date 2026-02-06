@@ -108,9 +108,11 @@ async def send_notice(
         selected_dept_ids = {int(i) for i in payload.deptIds}
 
         if selected_dept_ids:
-            existing_dept_ids = set(
-                int(i) for i in await Dept.filter(id__in=sorted(selected_dept_ids)).values_list("id", flat=True)
+            dept_rows = await Dept.filter(id__in=sorted(selected_dept_ids)).values_list(
+                "id",
+                flat=True,
             )
+            existing_dept_ids = {int(i) for i in dept_rows}
             missing = sorted(selected_dept_ids - existing_dept_ids)
             if missing:
                 raise HTTPException(
@@ -119,11 +121,17 @@ async def send_notice(
                 )
 
             expanded_dept_ids = await _expand_dept_ids(selected_dept_ids)
-            dept_users = await User.filter(is_active=True, dept_id__in=sorted(expanded_dept_ids)).all()
+            dept_users = await User.filter(
+                is_active=True,
+                dept_id__in=sorted(expanded_dept_ids),
+            ).all()
             target_user_ids.update({int(u.id) for u in dept_users})
 
         if selected_user_ids:
-            explicit_users = await User.filter(is_active=True, id__in=sorted(selected_user_ids)).all()
+            explicit_users = await User.filter(
+                is_active=True,
+                id__in=sorted(selected_user_ids),
+            ).all()
             if len(explicit_users) != len(selected_user_ids):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -298,7 +306,8 @@ async def outbox_detail(
 
     dept_names: list[str] = []
     if dept_ids:
-        dept_names = [str(d.name) for d in await Dept.filter(id__in=[int(i) for i in dept_ids]).all()]
+        depts = await Dept.filter(id__in=[int(i) for i in dept_ids]).all()
+        dept_names = [str(d.name) for d in depts]
 
     user_names: list[str] = []
     if user_ids:

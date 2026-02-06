@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
 
 from app.services.auth import auth_service
+from app.services.session import session_service
 from app.ws.notice import notice_ws_manager
 
 router = APIRouter()
@@ -26,7 +27,19 @@ async def notice_ws(websocket: WebSocket, token: str = Query(default="")):
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    await notice_ws_manager.connect(current_user.username, websocket)
+    if not current_user.jti:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    ok_, _reason = await session_service.validate_session(
+        username=current_user.username,
+        jti=current_user.jti,
+    )
+    if not ok_:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    await notice_ws_manager.connect(current_user.username, current_user.jti, websocket)
 
     try:
         while True:
@@ -35,5 +48,4 @@ async def notice_ws(websocket: WebSocket, token: str = Query(default="")):
     except WebSocketDisconnect:
         pass
     finally:
-        await notice_ws_manager.disconnect(current_user.username, websocket)
-
+        await notice_ws_manager.disconnect(current_user.username, current_user.jti, websocket)

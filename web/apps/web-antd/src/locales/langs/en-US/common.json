@@ -1,5 +1,11 @@
 {
   "yes": "Yes",
-  "no": "No"
+  "no": "No",
+  "import": "Import",
+  "export": "Export",
+  "downloadTemplate": "Download Template",
+  "importResult": "Import Result",
+  "importDone": "Import Done",
+  "importFailed": "Import Failed",
+  "exportFailed": "Export Failed"
 }
-

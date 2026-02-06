@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.v1.deps import require_permissions
 from app.core.config import settings
+from app.models.dept import Dept
 from app.models.menu import Menu
-from app.models.role import Role
+from app.models.role import DataScope, Role
 from app.schemas.response import ApiResponse, ok
 from app.schemas.system_role import SystemRoleCreate, SystemRoleOut, SystemRoleUpdate
 
@@ -42,6 +43,20 @@ async def _set_role_permissions(role: Role, menu_ids: list[int]) -> None:
         await role.menus.add(*menus)
 
 
+async def _set_role_depts(role: Role, dept_ids: list[int]) -> None:
+    """设置角色自定义数据范围部门（会先清空再写入）。"""
+
+    await role.depts.clear()
+    ids = [int(i) for i in set(dept_ids or []) if int(i) > 0]
+    if not ids:
+        return
+
+    depts = await Dept.filter(id__in=ids).all()
+    if len(depts) != len(ids):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="自定义部门不存在")
+    await role.depts.add(*depts)
+
+
 @router.get("/list", response_model=ApiResponse[dict])
 async def list_roles(
     page: int = Query(default=1, ge=1),
@@ -65,10 +80,23 @@ async def list_roles(
         qs = qs.filter(status=int(status_))
 
     total = await qs.count()
-    roles = await qs.order_by("-id").offset((page - 1) * pageSize).limit(pageSize)
+    roles = (
+        await qs.order_by("-id")
+        .offset((page - 1) * pageSize)
+        .limit(pageSize)
+        .prefetch_related("depts")
+    )
 
     items: list[SystemRoleOut] = []
     for role in roles:
+        dept_ids: list[int] = []
+        if role.data_scope == DataScope.CUSTOM:
+            if isinstance(getattr(role, "depts", None), list):
+                dept_ids = [int(d.id) for d in role.depts]
+            else:
+                ids = await role.depts.all().values_list("id", flat=True)
+                dept_ids = [int(i) for i in ids]
+
         items.append(
             SystemRoleOut(
                 id=role.id,
@@ -76,6 +104,8 @@ async def list_roles(
                 status=role.status,
                 remark=role.remark,
                 permissions=await _role_permissions(role),
+                dataScope=str(role.data_scope),
+                deptIds=dept_ids,
                 createTime=_format_dt(role.created_at),
             ),
         )
@@ -84,7 +114,10 @@ async def list_roles(
 
 
 @router.post("", response_model=ApiResponse[int])
-async def create_role(payload: SystemRoleCreate, _user=Depends(require_permissions("System:Role:Create"))):
+async def create_role(
+    payload: SystemRoleCreate,
+    _user=Depends(require_permissions("System:Role:Create")),
+):
     """创建角色。"""
 
     role_code = f"role_{uuid4().hex[:8]}"
@@ -93,8 +126,13 @@ async def create_role(payload: SystemRoleCreate, _user=Depends(require_permissio
         code=role_code,
         status=payload.status,
         remark=payload.remark,
+        data_scope=payload.dataScope,
     )
     await _set_role_permissions(role, payload.permissions)
+    if payload.dataScope == DataScope.CUSTOM:
+        await _set_role_depts(role, payload.deptIds)
+    else:
+        await role.depts.clear()
     return ok(role.id)
 
 
@@ -115,16 +153,35 @@ async def update_role(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="超级管理员权限不可修改",
         )
+    if role.code == settings.SUPERUSER_ROLE_CODE and (
+        payload.dataScope is not None or payload.deptIds is not None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="超级管理员数据范围不可修改",
+        )
 
     data = payload.model_dump(exclude_unset=True)
     permissions = data.pop("permissions", None)
+    data_scope = data.pop("dataScope", None)
+    dept_ids = data.pop("deptIds", None)
 
     for key, value in data.items():
         setattr(role, key, value)
+    if data_scope is not None:
+        role.data_scope = data_scope
     await role.save()
 
     if permissions is not None:
         await _set_role_permissions(role, permissions)
+
+    effective_scope = str(role.data_scope)
+    if effective_scope != DataScope.CUSTOM:
+        if data_scope is not None or dept_ids is not None:
+            await role.depts.clear()
+    else:
+        if dept_ids is not None:
+            await _set_role_depts(role, dept_ids)
 
     return ok(True)
 

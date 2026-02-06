@@ -17,6 +17,19 @@ export namespace SystemUserApi {
     homePath?: string | null;
     createTime?: string;
   }
+
+  export interface ImportErrorItem {
+    row: number;
+    message: string;
+    column?: string | null;
+  }
+
+  export interface ImportResult {
+    total: number;
+    success: number;
+    failed: number;
+    errors: ImportErrorItem[];
+  }
 }
 
 /**
@@ -76,11 +89,24 @@ async function getUserOptions(arg?: any) {
   );
 }
 
+/**
+ * 批量导入用户（Excel）
+ */
+async function importUsers(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return requestClient.post<SystemUserApi.ImportResult>(
+    '/system/user/import',
+    formData,
+  );
+}
+
 export {
   createUser,
   deleteUser,
   getUserList,
   getUserOptions,
+  importUsers,
   resetUserPassword,
   updateUser,
 };

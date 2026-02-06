@@ -26,8 +26,7 @@ class SystemDeptUpdate(BaseModel):
 class SystemDeptOut(SystemDeptBase):
     id: int = Field(..., description="部门ID")
     createTime: str | None = Field(default=None, description="创建时间（字符串）")
-    children: list["SystemDeptOut"] | None = Field(default=None, description="下级部门")
+    children: list[SystemDeptOut] | None = Field(default=None, description="下级部门")
 
 
 SystemDeptOut.model_rebuild()
-

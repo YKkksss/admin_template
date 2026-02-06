@@ -9,9 +9,10 @@ from fastapi import Depends, Header, HTTPException, status
 from app.core.config import settings
 from app.schemas.user import CurrentUser
 from app.services.auth import auth_service
+from app.services.session import session_service
 
 
-def get_current_user(authorization: str | None = Header(default=None)) -> CurrentUser:
+async def get_current_user(authorization: str | None = Header(default=None)) -> CurrentUser:
     """
     从请求头 `Authorization: Bearer <token>` 中解析当前用户。
 
@@ -29,6 +30,10 @@ def get_current_user(authorization: str | None = Header(default=None)) -> Curren
     user = auth_service.parse_access_token(token)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="登录信息已过期或无效")
+
+    ok_, reason = await session_service.validate_session(username=user.username, jti=user.jti)
+    if not ok_:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=reason)
 
     return user
 

@@ -3,6 +3,7 @@ import type { OnActionClickParams, VxeTableGridOptions } from '#/adapter/vxe-tab
 import type { NoticeApi } from '#/api';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
+import { Check, MailCheck, Trash2 } from '@vben/icons';
 
 import { Button, message, Modal } from 'ant-design-vue';
 
@@ -11,6 +12,8 @@ import {
   deleteInboxNoticeApi,
   deleteInboxNoticeBatchApi,
   getInboxNoticesApi,
+  markInboxNoticeReadAllApi,
+  markInboxNoticeReadBatchApi,
 } from '#/api';
 import { useNoticeStore } from '#/store';
 import { $t } from '#/locales';
@@ -145,6 +148,58 @@ async function onBatchDelete() {
     // 错误提示由全局 request 拦截器处理
   }
 }
+
+async function onBatchRead() {
+  const records = gridApi.grid?.getCheckboxRecords?.() ?? [];
+  if (!records.length) {
+    message.warning($t('notice.selectToRead'));
+    return;
+  }
+
+  const ids = records
+    .filter((r: any) => r && r.id && r.isRead === false)
+    .map((r: any) => r.id);
+
+  if (!ids.length) {
+    message.warning($t('notice.selectToRead'));
+    return;
+  }
+
+  try {
+    await confirm($t('notice.batchReadConfirm'), $t('notice.batchRead'));
+  } catch {
+    return;
+  }
+
+  try {
+    await markInboxNoticeReadBatchApi(ids);
+    message.success($t('notice.readSuccess'));
+    try {
+      gridApi.grid?.clearCheckboxRow?.();
+    } catch {
+      // ignore
+    }
+    onRefresh();
+  } catch {
+    // 错误提示由全局 request 拦截器处理
+  }
+}
+
+async function onReadAll() {
+  try {
+    await confirm($t('notice.readAllConfirm'), $t('notice.readAll'));
+  } catch {
+    return;
+  }
+
+  try {
+    await markInboxNoticeReadAllApi();
+    message.success($t('notice.readSuccess'));
+    onRefresh();
+  } catch {
+    // 错误提示由全局 request 拦截器处理
+  }
+}
 </script>
 
 <template>
@@ -152,7 +207,19 @@ async function onBatchDelete() {
     <DetailDrawer @success="onRefresh" />
     <Grid>
       <template #toolbar-actions>
+        <span class="mr-3 text-sm text-muted-foreground">
+          {{ $t('notice.unreadCount', [noticeStore.unreadCount]) }}
+        </span>
+        <Button type="primary" @click="onReadAll">
+          <MailCheck class="mr-1 size-5" />
+          {{ $t('notice.readAll') }}
+        </Button>
+        <Button type="primary" @click="onBatchRead">
+          <Check class="mr-1 size-5" />
+          {{ $t('notice.batchRead') }}
+        </Button>
         <Button danger type="primary" @click="onBatchDelete">
+          <Trash2 class="mr-1 size-5" />
           {{ $t('notice.batchDelete') }}
         </Button>
       </template>
